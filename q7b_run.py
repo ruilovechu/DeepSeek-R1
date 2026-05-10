@@ -32,61 +32,82 @@ model = AutoModelForCausalLM.from_pretrained(
     low_cpu_mem_usage=True
 )
 
+STOP_TOKENS = [
+    tokenizer.eos_token_id,
+    tokenizer.convert_tokens_to_ids("<|end_of_text|>"),
+    tokenizer.convert_tokens_to_ids("</think>")  # 强制停止思考！
+]
+
 # 测试对话
-prompt = input("输入你的问题：")
-print("\n用户：", prompt)
 
-inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+def build_prompt(user_input):
+    return f"""你是一个准确、严谨、诚实的AI助手。
+如果不确定答案，直接说“我不知道”，绝对不编造信息。
 
-# 1. 创建流式生成器
-streamer = TextIteratorStreamer(
-    tokenizer,
-    skip_prompt=True,        # 跳过问题，只输出回答
-    skip_special_tokens=True # 去掉特殊符号
-)
+用户问题：{user_input}
+回答："""
 
-# 2. 把 streamer 放进 generate
-generate_kwargs = dict(
-    **inputs,
-    streamer=streamer,
-    max_new_tokens=512,
-    top_p=0.9,
-    do_sample=False,
-    temperature=0.1,
-    pad_token_id=tokenizer.eos_token_id,
-    eos_token_id=tokenizer.eos_token_id
-)
+def chat():
+    prompt = input("输入你的问题：")
+    print("\n用户：", prompt)
+    if prompt == 'quit':
+        return -1
 
-# 3. 用线程启动生成（不卡界面）
-thread = threading.Thread(target=model.generate, kwargs=generate_kwargs)
-thread.start()
+    prompt = build_prompt(prompt)
 
-# 4. 逐字输出
-print("\nAI：", end="", flush=True)
-for new_text in streamer:
-    print(new_text, end="", flush=True)
-print()
+    inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
 
-# inputs = tokenizer(prompt, return_tensors="pt").to("cuda")
+    # 1. 创建流式生成器
+    streamer = TextIteratorStreamer(
+        tokenizer,
+        skip_prompt=True,        # 跳过问题，只输出回答
+        skip_special_tokens=True # 去掉特殊符号
+    )
 
-# print("\nAI 思考中...\n")
-# with torch.no_grad():
-#     outputs = model.generate(
-#         **inputs,
-#         max_new_tokens=512,        
-#         top_p=0.9,
+    # 2. 把 streamer 放进 generate
+    generate_kwargs = dict(
+        **inputs,
+        streamer=streamer,
+        max_new_tokens=512,
 
-#         # 有创意与无创意参数
-#         # do_sample=True,
-#         # temperature=0.7,
-#         do_sample=False,
-#         temperature=0.1,
+        # 限制候选词，防止乱讲
+        top_k=50,
 
-#         pad_token_id=tokenizer.eos_token_id,
-#         eos_token_id=tokenizer.eos_token_id
-#     )
+        # 概率
+        top_p=0.8, 
 
-# # 只输出回答
-# response = tokenizer.decode(outputs[0][len(inputs["input_ids"][0]):], skip_special_tokens=True)
+        # 关闭创意
+        # do_sample=False,
+        # temperature=0.1,
 
-# print("AI：", response)
+        # 秒出结果，不废话
+        do_sample=True,
+        temperature=0.7,
+
+        pad_token_id=tokenizer.eos_token_id,
+        eos_token_id=tokenizer.eos_token_id,
+
+        # 关闭思考等待模式
+        use_cache=True, 
+
+        # 强制立刻出字
+        #min_new_tokens=1
+
+        # 轻微防重复
+        repetition_penalty=1.1,
+    )
+
+    # 3. 用线程启动生成（不卡界面）
+    thread = threading.Thread(target=model.generate, kwargs=generate_kwargs)
+    thread.start()
+
+    # 4. 逐字输出
+    print("\n", end="", flush=True)
+    for new_text in streamer:
+        print(new_text, end="", flush=True)
+    print()
+
+    return 0
+
+while chat() == 0:
+    pass
