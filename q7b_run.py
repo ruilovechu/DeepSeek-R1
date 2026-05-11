@@ -41,11 +41,16 @@ STOP_TOKENS = [
 # 测试对话
 
 def build_prompt(user_input):
-    return f"""你是一个准确、严谨、诚实的AI助手。
-如果不确定答案，直接说“我不知道”，绝对不编造信息。
-
-用户问题：{user_input}
-回答："""
+    messages = [
+        {"role": "system", "content": "你是严谨准确的AI助手。直接给出最终答案，**禁止输出任何思考、推理、分析过程**，不要出现标签，不要分步解释，只给简洁结果。不确定就直接说我不知道，绝不编造。"},
+        {"role": "user", "content": user_input}
+    ]
+    # 模型官方模板，必须用这个！
+    return tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    )
 
 def chat():
     prompt = input("输入你的问题：")
@@ -82,7 +87,9 @@ def chat():
 
         # 秒出结果，不废话
         do_sample=True,
-        temperature=0.7,
+
+        # 无创意
+        #temperature=0.1,
 
         pad_token_id=tokenizer.eos_token_id,
         eos_token_id=tokenizer.eos_token_id,

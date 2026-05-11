@@ -106,3 +106,18 @@ pip download -r requirements.txt --index-url https://download.pytorch.org/whl/cu
 ```shell
 pip install --no-index --find-links=D:\pip_packages -r requirements.txt 
 ```
+
+# FastAPI
+
+## 向 requirements.txt 最后追加
+```
+fastapi>=0.110.0
+uvicorn>=0.27.0
+```
+
+## 执行：
+
+```shell
+pip download -r requirements.txt --index-url https://download.pytorch.org/whl/cu124 --extra-index-url https://pypi.tuna.tsinghua.edu.cn/simple -d D:\pip_packages
+pip install --no-index --find-links=D:\pip_packages -r requirements.txt 
+```
