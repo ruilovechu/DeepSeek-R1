@@ -3,6 +3,14 @@ import torch
 import warnings
 import threading
 
+# q7b_fastapi.py
+# 运行： uvicorn q7b_fastapi:app --reload
+# swagger 文档：http://127.0.0.1:8000/docs#/
+from fastapi import FastAPI
+from pydantic import BaseModel
+
+app = FastAPI()
+
 # 全局屏蔽警告
 warnings.filterwarnings("ignore")
 import os
@@ -52,8 +60,7 @@ def build_prompt(user_input):
         add_generation_prompt=True
     )
 
-def chat():
-    prompt = input("输入你的问题：")
+def chat_inner(prompt: str):
     print("\n用户：", prompt)
     if prompt == 'quit':
         return -1
@@ -108,13 +115,39 @@ def chat():
     thread = threading.Thread(target=model.generate, kwargs=generate_kwargs)
     thread.start()
 
+    str_builder = ""
+
     # 4. 逐字输出
     print("\n", end="", flush=True)
     for new_text in streamer:
-        print(new_text, end="", flush=True)
+        # print(new_text, end="", flush=True)
+        str_builder = str_builder + new_text
     print()
 
-    return 0
+    return str_builder
 
-while chat() == 0:
-    pass
+# 本地测试
+# while chat() == 0:
+#     pass
+
+class chat_request(BaseModel):
+    content: str
+    request_id: str
+
+@app.get("/items/{item_id}")
+async def read_item(item_id: int, q: str | None = None):
+    return {
+        "item_id": item_id
+        , "query": q
+    }
+
+@app.post("/chat")
+async def chat(request: chat_request):
+    print("用户输入：" + request.content)
+    
+    # 调用内部处理逻辑，裸模型处理提问，并返回回答
+    chat_res = chat_inner(request.content)
+    
+    return {
+        "data": chat_res
+    }
